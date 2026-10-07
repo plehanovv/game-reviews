@@ -5,3 +5,4 @@ coverage.out
 *.exe
 *.test
 .cache/
+.local-notes/
