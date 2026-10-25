@@ -10,12 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"game-reviews/internal/account"
 	"game-reviews/internal/config"
 	"game-reviews/internal/httpapi"
+	"game-reviews/internal/postgres"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 	if err := run(logger); err != nil {
 		logger.Error("application stopped", "error", err)
 		os.Exit(1)
@@ -29,8 +32,25 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	db, err := postgres.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	catalog := postgres.NewCatalog(db)
+	accounts := postgres.NewAccounts(db)
+	auth := account.NewService(accounts)
+	checkReady := func(ctx context.Context) error {
+		if err := catalog.CheckReady(ctx); err != nil {
+			return err
+		}
+		return accounts.CheckReady(ctx)
+	}
+	if !cfg.CookieSecure {
+		logger.Warn("secure cookies disabled; local HTTP development only")
+	}
 	server := &http.Server{
-		Addr: cfg.HTTPAddr, Handler: httpapi.NewHandler(),
+		Addr: cfg.HTTPAddr, Handler: httpapi.NewApplication(catalog, checkReady, auth, cfg.CookieSecure),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second, WriteTimeout: 15 * time.Second,
 		IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20,

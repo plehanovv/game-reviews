@@ -2,30 +2,49 @@
 package httpapi
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
+
+	"game-reviews/internal/game"
 )
 
-func NewHandler() http.Handler {
+type Catalog interface {
+	List(context.Context, game.ListOptions) ([]game.Game, error)
+	Get(context.Context, int64) (game.Game, error)
+}
+
+func NewHandler(catalog Catalog) http.Handler {
+	return NewHandlerWithReadiness(catalog, nil)
+}
+
+func NewHandlerWithReadiness(catalog Catalog, checkReady func(context.Context) error) http.Handler {
+	return NewApplication(catalog, checkReady, nil, true)
+}
+
+func NewApplication(catalog Catalog, checkReady func(context.Context) error, auth AuthService, secureCookies bool) http.Handler {
 	mux := http.NewServeMux()
-	// Liveness only: this does not claim PostgreSQL, Redis or Kafka are ready.
-
+	// Liveness only: this does not claim external services are ready.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_, _ = w.Write([]byte("{\"status\":\"ok\"}\n"))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-
+	mux.HandleFunc("GET /readyz", readinessHandler(checkReady))
 	mux.HandleFunc("GET /api/v1/about", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		response := map[string]string{
-			"name":    "game-reviews",
-			"version": "0.1.0",
-		}
-
-		err := json.NewEncoder(w).Encode(response)
-		if err != nil {
-			return
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"name": "game-reviews", "version": "0.1.0"})
 	})
-	return mux
+	games := gameHandler{catalog: catalog}
+	mux.HandleFunc("GET /api/v1/games", games.list)
+	mux.HandleFunc("GET /api/v1/games/{id}", games.get)
+	if auth != nil {
+		h := authHandler{service: auth, secure: secureCookies}
+		limiter := newAuthLimiter()
+		mux.Handle("POST /api/v1/auth/register", noStore(limiter.wrap(h.register)))
+		mux.Handle("POST /api/v1/auth/login", noStore(limiter.wrap(h.login)))
+		mux.Handle("POST /api/v1/auth/logout", noStore(http.HandlerFunc(h.logout)))
+		mux.Handle("GET /api/v1/auth/me", noStore(http.HandlerFunc(h.me)))
+	}
+	protection := http.NewCrossOriginProtection()
+	protection.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, 403, "cross_origin_denied", "Cross-origin requests are not allowed")
+	}))
+	return protection.Handler(mux)
 }

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"game-reviews/internal/game"
 )
 
 func TestRouting(t *testing.T) {
@@ -16,7 +18,7 @@ func TestRouting(t *testing.T) {
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			NewHandler().ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
+			NewHandler(game.NewCatalog(nil)).ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
 			if w.Code != tc.status {
 				t.Fatalf("got %d, want %d", w.Code, tc.status)
 			}
@@ -31,7 +33,7 @@ func TestAbout(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/about", nil)
 	response := httptest.NewRecorder()
 
-	NewHandler().ServeHTTP(response, request)
+	NewHandler(game.NewCatalog(nil)).ServeHTTP(response, request)
 
 	if response.Code != 200 {
 		t.Fatalf("got %d, want 200", response.Code)
