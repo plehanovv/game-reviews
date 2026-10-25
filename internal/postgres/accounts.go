@@ -14,6 +14,25 @@ type Accounts struct{ db *sql.DB }
 
 func NewAccounts(db *sql.DB) *Accounts { return &Accounts{db: db} }
 
+// SetRole is used by the local administration command, not by public HTTP routes.
+func (s *Accounts) SetRole(ctx context.Context, username, role string) error {
+	if role != "admin" && role != "user" {
+		return errors.New("invalid role")
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE users SET role=$1 WHERE username=$2`, role, username)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
 func (s *Accounts) CreateUser(ctx context.Context, username, passwordHash string) (account.User, error) {
 	var u account.User
 	err := s.db.QueryRowContext(ctx, `INSERT INTO users(username, password_hash) VALUES ($1, $2) RETURNING id, username, role`, username, passwordHash).Scan(&u.ID, &u.Username, &u.Role)

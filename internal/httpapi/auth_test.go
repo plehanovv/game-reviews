@@ -11,7 +11,11 @@ import (
 	"game-reviews/internal/account"
 )
 
-type authStub struct{ calls int }
+type authStub struct {
+	calls        int
+	role         string
+	currentError error
+}
 
 func (s *authStub) Register(context.Context, string, string) (account.User, error) {
 	s.calls++
@@ -22,7 +26,7 @@ func (s *authStub) Login(context.Context, string, string) (account.User, string,
 	return account.User{ID: 1}, "token", nil
 }
 func (s *authStub) CurrentUser(context.Context, string) (account.User, error) {
-	return account.User{ID: 1}, nil
+	return account.User{ID: 1, Role: s.role}, s.currentError
 }
 func (s *authStub) Logout(context.Context, string) error { return nil }
 

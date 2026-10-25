@@ -101,3 +101,27 @@ directories. The observed locations were `%LOCALAPPDATA%\Docker\run` and
 and existing volumes have been verified. A factory reset is not this procedure
 and may remove local container data.
 
+## Catalog administration
+
+Register an account first, then grant its role using local database access:
+
+```powershell
+go run ./cmd/admin -username player_one -role admin
+```
+
+There is no public role-management endpoint. Use `-role user` to revoke the role.
+Roles are read from PostgreSQL on every protected request, so an existing session
+sees role changes without logging in again. After login:
+
+```powershell
+$game = @{ title='Portal 2'; release_year=2011 } | ConvertTo-Json
+Invoke-RestMethod http://localhost:8080/api/v1/games -Method Post -ContentType application/json -Body $game -WebSession $loginSession
+```
+
+The response is 201 with the created game and a Location header pointing to it.
+Missing/expired sessions return 401, regular users receive 403. IDs are generated
+by PostgreSQL; request fields such as `id` or `role` are rejected. Titles need
+1-300 characters after trimming; release years must be 1950-2100. Duplicate
+titles are allowed, since different games can have the same name. Retrying a
+successful POST creates another record; idempotency keys are not implemented.
+

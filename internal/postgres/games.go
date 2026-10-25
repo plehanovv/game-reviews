@@ -13,6 +13,19 @@ type Catalog struct{ db *sql.DB }
 
 func NewCatalog(db *sql.DB) *Catalog { return &Catalog{db: db} }
 
+func (c *Catalog) Create(ctx context.Context, input game.CreateInput) (game.Game, error) {
+	input, err := input.Validate()
+	if err != nil {
+		return game.Game{}, err
+	}
+	var item game.Game
+	err = c.db.QueryRowContext(ctx, `INSERT INTO games(title, release_year) VALUES ($1,$2) RETURNING id,title,release_year`, input.Title, input.ReleaseYear).Scan(&item.ID, &item.Title, &item.ReleaseYear)
+	if err != nil {
+		return game.Game{}, fmt.Errorf("create game: %w", err)
+	}
+	return item, nil
+}
+
 func (c *Catalog) List(ctx context.Context, options game.ListOptions) ([]game.Game, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err

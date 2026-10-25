@@ -50,7 +50,7 @@ func run(logger *slog.Logger) error {
 		logger.Warn("secure cookies disabled; local HTTP development only")
 	}
 	server := &http.Server{
-		Addr: cfg.HTTPAddr, Handler: httpapi.NewApplication(catalog, checkReady, auth, cfg.CookieSecure),
+		Addr: cfg.HTTPAddr, Handler: httpapi.NewApplication(catalog, checkReady, auth, cfg.CookieSecure, httpapi.WithGameCreation(catalog)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second, WriteTimeout: 15 * time.Second,
 		IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20,

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"game-reviews/internal/account"
+	"game-reviews/internal/game"
 	"game-reviews/internal/httpapi"
 	"game-reviews/migrations"
 	"github.com/jackc/pgx/v5"
@@ -61,7 +62,7 @@ func TestAccountLifecycleIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := account.NewService(store)
-	h := httpapi.NewApplication(NewCatalog(db), store.CheckReady, service, false)
+	h := httpapi.NewApplication(NewCatalog(db), store.CheckReady, service, false, httpapi.WithGameCreation(NewCatalog(db)))
 	request := func(method, path, body string, cookie *http.Cookie, want int) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -107,6 +108,35 @@ func TestAccountLifecycleIntegration(t *testing.T) {
 		t.Fatal("session token not hashed")
 	}
 	request("GET", "/api/v1/auth/me", "", cookie, 200)
+	gameBody := `{"title":" Portal 2 ","release_year":2011}`
+	request("POST", "/api/v1/games", gameBody, nil, 401)
+	request("POST", "/api/v1/games", gameBody, cookie, 403)
+	if err := store.SetRole(ctx, "player_1", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	created := request("POST", "/api/v1/games", gameBody, cookie, 201)
+	var createdGame game.Game
+	if err := json.Unmarshal(created.Body.Bytes(), &createdGame); err != nil {
+		t.Fatal(err)
+	}
+	if createdGame.ID <= 0 || createdGame.Title != "Portal 2" {
+		t.Fatalf("created: %+v", createdGame)
+	}
+	request("GET", created.Header().Get("Location"), "", nil, 200)
+	if err := store.SetRole(ctx, "player_1", "user"); err != nil {
+		t.Fatal(err)
+	}
+	request("POST", "/api/v1/games", gameBody, cookie, 403)
+	var gameCount int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM games`).Scan(&gameCount); err != nil || gameCount != 1 {
+		t.Fatalf("unauthorized records: %d, %v", gameCount, err)
+	}
+	if err := store.SetRole(ctx, "missing", "admin"); err == nil {
+		t.Fatal("missing user accepted")
+	}
+	if err := store.SetRole(ctx, "player_1", "owner"); err == nil {
+		t.Fatal("invalid role accepted")
+	}
 	request("GET", "/api/v1/auth/me", "", nil, 401)
 	renewed := request("POST", "/api/v1/auth/login", body, cookie, 200).Result().Cookies()[0]
 	request("GET", "/api/v1/auth/me", "", cookie, 401)

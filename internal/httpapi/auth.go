@@ -43,15 +43,20 @@ type credentials struct {
 
 func decodeCredentials(w http.ResponseWriter, r *http.Request) (credentials, bool) {
 	var input credentials
+	ok := decodeJSON(w, r, &input)
+	return input, ok
+}
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, input any) bool {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
-		return input, false
+		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
-	err = decoder.Decode(&input)
+	err = decoder.Decode(input)
 	if err == nil {
 		var extra any
 		if trailing := decoder.Decode(&extra); trailing != io.EOF {
@@ -67,11 +72,11 @@ func decodeCredentials(w http.ResponseWriter, r *http.Request) (credentials, boo
 		if errors.As(err, &sizeErr) {
 			writeError(w, 413, "body_too_large", "Request body exceeds 4096 bytes")
 		} else {
-			writeError(w, 400, "invalid_json", "Expected one JSON object with username and password")
+			writeError(w, 400, "invalid_json", "Expected one JSON object with supported fields")
 		}
-		return input, false
+		return false
 	}
-	return input, true
+	return true
 }
 
 func authError(w http.ResponseWriter, err error) {

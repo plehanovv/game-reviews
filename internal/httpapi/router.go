@@ -21,7 +21,11 @@ func NewHandlerWithReadiness(catalog Catalog, checkReady func(context.Context) e
 	return NewApplication(catalog, checkReady, nil, true)
 }
 
-func NewApplication(catalog Catalog, checkReady func(context.Context) error, auth AuthService, secureCookies bool) http.Handler {
+func NewApplication(catalog Catalog, checkReady func(context.Context) error, auth AuthService, secureCookies bool, options ...Option) http.Handler {
+	var settings applicationOptions
+	for _, option := range options {
+		option(&settings)
+	}
 	mux := http.NewServeMux()
 	// Liveness only: this does not claim external services are ready.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +40,9 @@ func NewApplication(catalog Catalog, checkReady func(context.Context) error, aut
 	mux.HandleFunc("GET /api/v1/games/{id}", games.get)
 	if auth != nil {
 		h := authHandler{service: auth, secure: secureCookies}
+		if settings.creator != nil {
+			mux.Handle("POST /api/v1/games", noStore(h.requireAdmin(createGame(settings.creator))))
+		}
 		limiter := newAuthLimiter()
 		mux.Handle("POST /api/v1/auth/register", noStore(limiter.wrap(h.register)))
 		mux.Handle("POST /api/v1/auth/login", noStore(limiter.wrap(h.login)))
