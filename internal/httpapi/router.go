@@ -40,6 +40,12 @@ func NewApplication(catalog Catalog, checkReady func(context.Context) error, aut
 	mux.HandleFunc("GET /api/v1/games/{id}", games.get)
 	if auth != nil {
 		h := authHandler{service: auth, secure: secureCookies}
+		if settings.library != nil {
+			library := libraryHandler{store: settings.library}
+			mux.Handle("GET /api/v1/me/library", noStore(h.requireUser(library.list)))
+			mux.Handle("PUT /api/v1/me/library/{id}", noStore(h.requireUser(library.put)))
+			mux.Handle("DELETE /api/v1/me/library/{id}", noStore(h.requireUser(library.delete)))
+		}
 		if settings.creator != nil {
 			mux.Handle("POST /api/v1/games", noStore(h.requireAdmin(createGame(settings.creator))))
 		}

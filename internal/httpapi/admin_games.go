@@ -14,7 +14,10 @@ import (
 type GameCreator interface {
 	Create(context.Context, game.CreateInput) (game.Game, error)
 }
-type applicationOptions struct{ creator GameCreator }
+type applicationOptions struct {
+	creator GameCreator
+	library LibraryStore
+}
 type Option func(*applicationOptions)
 
 func WithGameCreation(creator GameCreator) Option {
@@ -22,6 +25,16 @@ func WithGameCreation(creator GameCreator) Option {
 }
 
 func (h authHandler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return h.requireUser(func(w http.ResponseWriter, r *http.Request, user account.User) {
+		if user.Role != "admin" {
+			writeError(w, 403, "forbidden", "Administrator access required")
+			return
+		}
+		next(w, r)
+	})
+}
+
+func (h authHandler) requireUser(next func(http.ResponseWriter, *http.Request, account.User)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(h.cookieName())
 		if err != nil {
@@ -35,11 +48,7 @@ func (h authHandler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			authError(w, err)
 			return
 		}
-		if user.Role != "admin" {
-			writeError(w, 403, "forbidden", "Administrator access required")
-			return
-		}
-		next(w, r)
+		next(w, r, user)
 	}
 }
 

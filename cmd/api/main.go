@@ -39,18 +39,22 @@ func run(logger *slog.Logger) error {
 	defer db.Close()
 	catalog := postgres.NewCatalog(db)
 	accounts := postgres.NewAccounts(db)
+	library := postgres.NewLibrary(db)
 	auth := account.NewService(accounts)
 	checkReady := func(ctx context.Context) error {
 		if err := catalog.CheckReady(ctx); err != nil {
 			return err
 		}
-		return accounts.CheckReady(ctx)
+		if err := accounts.CheckReady(ctx); err != nil {
+			return err
+		}
+		return library.CheckReady(ctx)
 	}
 	if !cfg.CookieSecure {
 		logger.Warn("secure cookies disabled; local HTTP development only")
 	}
 	server := &http.Server{
-		Addr: cfg.HTTPAddr, Handler: httpapi.NewApplication(catalog, checkReady, auth, cfg.CookieSecure, httpapi.WithGameCreation(catalog)),
+		Addr: cfg.HTTPAddr, Handler: httpapi.NewApplication(catalog, checkReady, auth, cfg.CookieSecure, httpapi.WithGameCreation(catalog), httpapi.WithLibrary(library)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second, WriteTimeout: 15 * time.Second,
 		IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20,

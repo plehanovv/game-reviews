@@ -125,3 +125,26 @@ by PostgreSQL; request fields such as `id` or `role` are rejected. Titles need
 titles are allowed, since different games can have the same name. Retrying a
 successful POST creates another record; idempotency keys are not implemented.
 
+## Personal library
+
+Apply the latest migration before running the API. With a logged-in session and
+an existing game ID:
+
+```powershell
+$entry = @{ status='playing' } | ConvertTo-Json
+Invoke-RestMethod http://localhost:8080/api/v1/me/library/1 -Method Put -ContentType application/json -Body $entry -WebSession $loginSession
+Invoke-RestMethod 'http://localhost:8080/api/v1/me/library?limit=20' -WebSession $loginSession
+Invoke-RestMethod http://localhost:8080/api/v1/me/library/1 -Method Delete -WebSession $loginSession
+```
+
+PUT creates or replaces your entry and returns 200. Statuses: `planned`, `playing`,
+`completed`, `on_hold`, `dropped`. Repeating the same status preserves timestamps.
+Missing catalog games return 404; invalid status or ID returns 400; absent/expired
+sessions return 401. An entry cannot be assigned to a user ID from the body.
+
+GET returns `items` and nullable `next_after_id`. Pass the next cursor as `after_id`;
+the default limit is 20 and maximum 100. Each item has `game_id`, `status`,
+`created_at`, and `updated_at`. An empty library returns an empty array in `items`.
+DELETE returns 204 even if your entry is already absent. Libraries are currently
+private, including for administrators; public sharing is not implemented.
+
