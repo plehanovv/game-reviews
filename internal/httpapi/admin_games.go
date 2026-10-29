@@ -17,6 +17,7 @@ type GameCreator interface {
 type applicationOptions struct {
 	creator GameCreator
 	library LibraryStore
+	ratings RatingStore
 }
 type Option func(*applicationOptions)
 

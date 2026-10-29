@@ -38,8 +38,17 @@ func NewApplication(catalog Catalog, checkReady func(context.Context) error, aut
 	games := gameHandler{catalog: catalog}
 	mux.HandleFunc("GET /api/v1/games", games.list)
 	mux.HandleFunc("GET /api/v1/games/{id}", games.get)
+	if settings.ratings != nil {
+		mux.HandleFunc("GET /api/v1/games/{id}/rating", ratingHandler{store: settings.ratings}.summary)
+	}
 	if auth != nil {
 		h := authHandler{service: auth, secure: secureCookies}
+		if settings.ratings != nil {
+			ratings := ratingHandler{store: settings.ratings}
+			mux.Handle("PUT /api/v1/me/ratings/{id}", noStore(h.requireUser(ratings.put)))
+			mux.Handle("GET /api/v1/me/ratings/{id}", noStore(h.requireUser(ratings.get)))
+			mux.Handle("DELETE /api/v1/me/ratings/{id}", noStore(h.requireUser(ratings.delete)))
+		}
 		if settings.library != nil {
 			library := libraryHandler{store: settings.library}
 			mux.Handle("GET /api/v1/me/library", noStore(h.requireUser(library.list)))

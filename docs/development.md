@@ -148,3 +148,22 @@ the default limit is 20 and maximum 100. Each item has `game_id`, `status`,
 DELETE returns 204 even if your entry is already absent. Libraries are currently
 private, including for administrators; public sharing is not implemented.
 
+## Ratings
+
+Apply migrations before restarting the API. A rating does not require a library
+entry. With a valid login session and an existing game:
+
+```powershell
+$rating = @{ score=8 } | ConvertTo-Json
+Invoke-RestMethod http://localhost:8080/api/v1/me/ratings/1 -Method Put -ContentType application/json -Body $rating -WebSession $loginSession
+Invoke-RestMethod http://localhost:8080/api/v1/me/ratings/1 -WebSession $loginSession
+Invoke-RestMethod http://localhost:8080/api/v1/games/1/rating
+Invoke-RestMethod http://localhost:8080/api/v1/me/ratings/1 -Method Delete -WebSession $loginSession
+```
+
+PUT accepts only integer scores 1-10 and returns 200. Missing games return 404.
+GET of your rating returns 404 if absent. DELETE returns 204 even if already
+absent. Public summaries return `{"game_id":1,"count":0,"average":null}` when
+there are no votes, and a mean rounded to two decimal places otherwise. Updating
+a score replaces one vote; removing a library entry leaves the rating intact.
+

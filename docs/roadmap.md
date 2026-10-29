@@ -11,15 +11,16 @@ ratings, and reviews.
 - Username/password accounts and revocable browser sessions.
 - Administrator-only game creation and a local role-management command.
 - Private personal libraries with statuses, pagination and owner-only updates.
+- Independent integer 1-10 ratings and public average/count per game.
 - Unit and PostgreSQL integration tests; CI workflow and Docker development setup.
 
 ## Next milestones
 
 1. Personal library extensions: status filters and explicit opt-in visibility
    for public profiles; the owner-only core is implemented.
-2. Ratings and reviews: a rating can exist without a review. Define the rating
-   scale, editing/deletion rules, spoilers and public visibility before migrations.
-   Enforce one current rating per user/game and explicit ownership checks.
+2. Text reviews: define editing/deletion rules, spoilers and public visibility
+   before migrations. Ratings are implemented independently on a 1-10 scale;
+   review writes will require explicit ownership checks.
 3. Game details and discovery: descriptions, genres, platforms, release dates,
    covers, search and filters. Choose licensed metadata/image sources and stable
    identifiers for imports; identical game titles are allowed.
